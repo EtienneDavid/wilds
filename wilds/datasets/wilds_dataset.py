@@ -275,6 +275,8 @@ class WILDSDataset:
 
         data_dir = os.path.join(root_dir, f'{self.dataset_name}_v{self.version}')
         version_file = os.path.join(data_dir, f'RELEASE_v{self.version}.txt')
+        
+
         current_major_version, current_minor_version = tuple(map(int, self.version.split('.')))
 
         # If the data_dir exists and contains the right RELEASE file,

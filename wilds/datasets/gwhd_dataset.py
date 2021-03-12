@@ -3,7 +3,7 @@ import pandas as pd
 import torch
 from pathlib import Path
 from PIL import Image
-from wilds.common.metrics.all_metrics import MultiTaskAccuracy
+#from wilds.common.metrics.all_metrics import MultiTaskAccuracy
 from wilds.datasets.wilds_dataset import WILDSDataset
 
 
@@ -58,7 +58,7 @@ class GWHDDataset(WILDSDataset):
         self._dataset_name = 'gwhd'
         self._version = '1.0'
         self._original_resolution = (1024, 1024)
-        self._download_url = 'https://worksheets.codalab.org/rest/bundles/0x287856b2694248358e3bc6fc1b4039f9/contents/blob/'
+        self._download_url = 'https://worksheets.codalab.org/rest/bundles/0x42fa9775eacc453489a428abd59a437d/contents/blob/'
         self._data_dir = self.initialize_data_dir(root_dir, download)
         self.root = Path(self.data_dir)
 
@@ -70,6 +70,7 @@ class GWHDDataset(WILDSDataset):
 
         self._split_scheme = split_scheme
 
+
         if split_scheme =="official":
             train_data_df = pd.read_csv(self.root / f'{split_scheme}_train.csv')
             val_data_df = pd.read_csv(self.root / f'{split_scheme}_val.csv')
@@ -79,11 +80,16 @@ class GWHDDataset(WILDSDataset):
             train_data_df = pd.read_csv(self.root / f'official_train.csv')
             test_data_df = pd.read_csv(self.root / f'{split_scheme}_test.csv')
             val_data_df = pd.DataFrame(columns=["image","labels","group"])
-
-        elif split_scheme is in [f"{domain}_in-dist" for domain in ["nau_1", "utokyo_1", "utokyo_2", "usask_1" , "uq_1"]]:
-            test_data_df = pd.read_csv(self.root / f'{split_scheme}_train.csv')
+        elif split_scheme in [f"{domain}_in-dist" for domain in ["nau_1", "utokyo_1", "utokyo_2", "usask_1" , "uq_1"]]:
+            train_data_df = pd.read_csv(self.root / f'{split_scheme}_train.csv')
             test_data_df = pd.read_csv(self.root / f'{split_scheme}_test.csv')
             val_data_df = pd.DataFrame(columns=["image","labels","group"])
+
+        elif split_scheme == "in-dist":
+            train_data_df = pd.read_csv(self.root / f'{split_scheme}_train.csv')
+            test_data_df = pd.read_csv(self.root / f'{split_scheme}_test.csv')
+            val_data_df = pd.DataFrame(columns=["image","labels","group"])
+         
 
         self._image_array = []
         self._split_array, self._y_array, self._metadata_array = [], [], []
@@ -92,7 +98,14 @@ class GWHDDataset(WILDSDataset):
             self._image_array.extend(list(df['image'].values))
             labels = list(df['labels'].values)
             self._split_array.extend([i] * len(labels))
+            
+
+
+            labels = [{"boxes": torch.stack([ torch.tensor([int(i) for i in box.split(" ")]) for box in boxes.split(";")]) ,"labels": torch.tensor([1.]*len(list(boxes.split(";")))).long() }  if type(boxes) != float else {"boxes":torch.empty(0,4),"labels":torch.empty(0,1,dtype=torch.long)} for boxes in labels]
+
             self._y_array.extend(labels)
+            
+            
             self._metadata_array.extend(list(df['group'].values))
 
 
@@ -101,22 +114,21 @@ class GWHDDataset(WILDSDataset):
         self._metadata_fields = ["domain"]
 
         self._split_array = np.array(self._split_array)
-
-        self._y_array = torch.tensor(self._y_array, dtype=torch.float)
-
+        
+        
+        
+        
         self._metadata_array = torch.tensor(self._metadata_array,
                                             dtype=torch.long).unsqueeze(1)
 
-        self._metric = MultiTaskAccuracy()
+        #self._metric = MultiTaskAccuracy()
 
     def get_input(self, idx):
        """
        Returns x for a given idx.
        """
-       img_filename = os.path.join(
-           self.data_dir,
-           self._input_array[idx])
-       x = Image.open(img_filename).convert('RGB')
+       img_filename = self.root / "images" / self._image_array[idx]
+       x = Image.open(img_filename)
        return x
 
     def eval(self, y_pred, y_true, metadata):
